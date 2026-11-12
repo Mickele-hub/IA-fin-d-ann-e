@@ -1,0 +1,327 @@
+{
+  "name": "Veille - Collecte RSS",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "df7520ac-45cb-4395-8d2d-9b05edf554a7",
+      "name": "Lancement manuel",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "9be21fc8-32b1-4ddb-981d-5ba5bc406198",
+      "name": "Planification quotidienne 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://feeds.feedburner.com/TheHackersNews",
+        "options": {}
+      },
+      "id": "9c690ee0-5e41-423f-8667-ee6838b7de5e",
+      "name": "RSS - The Hacker News",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        300,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://rss.arxiv.org/rss/cs.AI",
+        "options": {}
+      },
+      "id": "0afdd7c7-0408-4977-9c06-9835c6514e15",
+      "name": "RSS - arXiv cs.AI",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        300,
+        160
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://aws.amazon.com/blogs/aws/feed/",
+        "options": {}
+      },
+      "id": "7bf802d2-19c2-4284-ba0b-89ac0d55b60c",
+      "name": "RSS - AWS News Blog",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        300,
+        320
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://dev.to/feed",
+        "options": {}
+      },
+      "id": "ad9d542e-ccab-476f-807c-8652a563356e",
+      "name": "RSS - Dev.to",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        300,
+        480
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://huggingface.co/blog/feed.xml",
+        "options": {}
+      },
+      "id": "093dd088-60ee-4631-bd3c-809ac01f61b3",
+      "name": "RSS - Hugging Face",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        300,
+        640
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 5
+      },
+      "id": "414618c6-7043-4b7e-9951-ce350648767c",
+      "name": "Fusion des sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        600,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalisation vers le contrat d'interface : titre, description, date, lien, source\nconst SOURCES = {\n  'thehackernews.com': 'The Hacker News',\n  'arxiv.org': 'arXiv cs.AI',\n  'aws.amazon.com': 'AWS News Blog',\n  'dev.to': 'Dev.to',\n  'huggingface.co': 'Hugging Face',\n};\n\nconst clean = (s) => (s || '')\n  .replace(/<[^>]*>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/&quot;/g, '\"')\n  .replace(/&#39;/g, \"'\")\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  const lien = (j.link || '').trim();\n  const titre = clean(j.title);\n  if (!titre || !lien) continue;\n\n  const m = lien.match(/^https?:\\/\\/([^\\/?#:]+)/i);\n  const host = m ? m[1].toLowerCase().replace(/^www\\./, '') : '';\n  const key = Object.keys(SOURCES).find((k) => host.endsWith(k));\n  const source = key ? SOURCES[key] : (host || 'Inconnue');\n\n  let date = new Date(j.isoDate || j.pubDate || Date.now());\n  if (isNaN(date.getTime())) date = new Date();\n\n  const description = clean(j.contentSnippet || j.content || j.description || '').slice(0, 1000);\n\n  out.push({ json: { titre, description, date: date.toISOString(), lien, source } });\n}\n// Suppression des doublons exacts (même lien)\nconst vus = new Set();\nconst uniques = out.filter((o) => {\n  if (vus.has(o.json.lien)) return false;\n  vus.add(o.json.lien);\n  return true;\n});\n\n// Garder les 30 articles les plus récents par source\nconst MAX_PAR_SOURCE = 30;\nconst parSource = {};\nfor (const o of uniques) (parSource[o.json.source] = parSource[o.json.source] || []).push(o);\nconst final = [];\nfor (const liste of Object.values(parSource)) {\n  liste.sort((a, b) => new Date(b.json.date) - new Date(a.json.date));\n  final.push(...liste.slice(0, MAX_PAR_SOURCE));\n}\nreturn final;\n"
+      },
+      "id": "b9af0263-5862-4abc-b970-0cf0182bc780",
+      "name": "Normaliser les champs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "once",
+        "options": {
+          "fileName": "articles.json"
+        }
+      },
+      "id": "7c5f2f58-de76-41f9-bc01-d016046c0c3c",
+      "name": "Convertir en JSON",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "C:\\Users\\VOTRE_NOM\\.n8n-files\\articles.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "e037a080-68a7-43d4-8f8a-ee2eb8859f7d",
+      "name": "Ecrire articles.json",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "RSS - The Hacker News": {
+      "main": [
+        [
+          {
+            "node": "Fusion des sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS - arXiv cs.AI": {
+      "main": [
+        [
+          {
+            "node": "Fusion des sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "RSS - AWS News Blog": {
+      "main": [
+        [
+          {
+            "node": "Fusion des sources",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "RSS - Dev.to": {
+      "main": [
+        [
+          {
+            "node": "Fusion des sources",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "RSS - Hugging Face": {
+      "main": [
+        [
+          {
+            "node": "Fusion des sources",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Lancement manuel": {
+      "main": [
+        [
+          {
+            "node": "RSS - The Hacker News",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - arXiv cs.AI",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - AWS News Blog",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Dev.to",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Hugging Face",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planification quotidienne 8h": {
+      "main": [
+        [
+          {
+            "node": "RSS - The Hacker News",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - arXiv cs.AI",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - AWS News Blog",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Dev.to",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS - Hugging Face",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fusion des sources": {
+      "main": [
+        [
+          {
+            "node": "Normaliser les champs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser les champs": {
+      "main": [
+        [
+          {
+            "node": "Convertir en JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convertir en JSON": {
+      "main": [
+        [
+          {
+            "node": "Ecrire articles.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
