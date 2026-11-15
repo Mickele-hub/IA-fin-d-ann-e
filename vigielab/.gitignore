@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.log
+veille.db
+veille.db-shm
+veille.db-wal
+.env.local

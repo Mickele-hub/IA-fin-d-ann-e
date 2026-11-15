@@ -171,8 +171,8 @@ export function initDatabase(): void {
     dedupThreshold: '0.72',
     collectionMode: 'snapshot',
     ollamaEndpoint: 'http://localhost:11434',
-    ollamaModel: 'mistral',
-    preferLocalOllama: 'false',
+    ollamaModel: 'qwen3.5:4b',
+    preferLocalOllama: 'true',
   };
   const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   for (const [key, value] of Object.entries(defaultSettings)) {

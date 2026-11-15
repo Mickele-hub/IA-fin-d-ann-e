@@ -106,39 +106,77 @@ async function tryLocalOllama(
   model: string
 ): Promise<ClassificationResult | null> {
   try {
+    console.log(`[Ollama] Tentative avec ${model} sur ${endpoint}`);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    const prompt = `Tu es un analyste de veille technologique. Analyse cette publication et réponds UNIQUEMENT en JSON valide avec les clés: aiSummary (résumé en français de 2 phrases max), keyPoints (tableau de 2 à 3 points clés concis en français), domain (un parmi: ${VALID_DOMAINS.join(', ')}), opportunityType (un parmi: ${VALID_TYPES.join(', ')}), relevanceBoost (entier 0-25).
+    const timeout = setTimeout(() => controller.abort(), 300000); // 5 minutes
+    const prompt = `Tu es un analyste de veille technologique. Résume cette publication en français en 2 phrases maximum.
 Mots-clés prioritaires: ${keywords.join(', ')}.
 Titre: ${title}
-Extrait: ${excerpt}`;
+Extrait: ${excerpt}
+
+Réponds uniquement avec le résumé, sans autre texte.`;
 
     const res = await fetch(`${endpoint.replace(/\/$/, '')}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: false, format: 'json' }),
+      body: JSON.stringify({ model, prompt, stream: false }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(`[Ollama] Erreur HTTP: ${res.status}`);
+      return null;
+    }
     const data = (await res.json()) as { response?: string };
-    if (!data.response) return null;
-    const parsed = JSON.parse(data.response) as Partial<ClassificationResult>;
-    if (!parsed.aiSummary) return null;
+    console.log(`[Ollama] Réponse brute:`, JSON.stringify(data).substring(0, 200));
+    if (!data.response) {
+      console.log(`[Ollama] Pas de réponse`);
+      return null;
+    }
 
-    return {
-      aiSummary: String(parsed.aiSummary),
-      keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.slice(0, 3).map(String) : [],
-      domain: VALID_DOMAINS.includes(parsed.domain as ClassificationResult['domain'])
-        ? (parsed.domain as ClassificationResult['domain'])
-        : 'IA',
-      opportunityType: VALID_TYPES.includes(parsed.opportunityType as ClassificationResult['opportunityType'])
-        ? (parsed.opportunityType as ClassificationResult['opportunityType'])
-        : 'Publication technique',
-      relevanceBoost: typeof parsed.relevanceBoost === 'number' ? Math.min(25, Math.max(0, Math.round(parsed.relevanceBoost))) : 10,
+    const summary = data.response.trim();
+    console.log(`[Ollama] Résumé généré: ${summary.substring(0, 50)}...`);
+
+    // Déterminer le domaine et le type d'opportunité de façon heuristique
+    const text = `${title} ${excerpt}`.toLowerCase();
+    let domain: ClassificationResult['domain'] = 'IA';
+    if (/certfr|vulnérabilité|cvss|zero-day|anssi|sécurité|attaque|cyber/.test(text)) {
+      domain = 'Cybersécurité';
+    } else if (/appel à projets|horizon europe|marché public|anr|subvention/.test(text)) {
+      domain = 'Appels à projets';
+    } else if (/kubernetes|cloud|aws|azure|gcp|conteneur/.test(text)) {
+      domain = 'Cloud';
+    } else if (/partenariat|inria|recherche|arxiv/.test(text)) {
+      domain = 'Recherche';
+    } else if (/typescript|javascript|développement|open source/.test(text)) {
+      domain = 'Développement';
+    }
+
+    let opportunityType: ClassificationResult['opportunityType'] = 'Publication technique';
+    if (/certfr|vulnérabilité|cvss|alerte/.test(text)) {
+      opportunityType = 'Alerte sécurité';
+    } else if (/appel à projets|appel à candidatures|horizon europe/.test(text)) {
+      opportunityType = 'Appel à projets';
+    } else if (/marché public|consultation/.test(text)) {
+      opportunityType = "Appel d'offres";
+    } else if (/partenariat|transfert|consortium/.test(text)) {
+      opportunityType = 'Partenariat';
+    }
+
+    const relevanceBoost = opportunityType === 'Appel à projets' || opportunityType === "Appel d'offres" ? 15 : 10;
+
+    const result = {
+      aiSummary: summary,
+      keyPoints: [summary.slice(0, 100)],
+      domain,
+      opportunityType,
+      relevanceBoost,
       aiEngine: `Ollama (${model})`,
     };
-  } catch {
+    console.log(`[Ollama] Succès: ${result.aiEngine}`);
+    return result;
+  } catch (error) {
+    console.log(`[Ollama] Erreur: ${error}`);
     return null;
   }
 }
