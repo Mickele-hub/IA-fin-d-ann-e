@@ -17,3 +17,4 @@ venv/
 
 # Tests
 .pytest_cache/
+data/articles_traites.json
