@@ -34,6 +34,9 @@ FIN_DE_PHRASE = (".", "!", "?", "…", '"', "'", ")", "»")
 RE_BALISE = re.compile(r"<\s*/?\s*[a-zA-Z!]")
 RE_FIN_PHRASE = re.compile(r"[.!?](?=\s|$)")
 RE_CONTROLES = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+# Les flux arXiv commencent chaque description par « arXiv:2611.12933v1
+# Announce Type: new Abstract: » : du bruit pour la classification et le résumé.
+RE_PREFIXE_ARXIV = re.compile(r"^arXiv:\S+\s+Announce Type:\s*\S+\s+Abstract:\s*", re.IGNORECASE)
 
 
 def nettoyer_texte(texte):
@@ -103,6 +106,11 @@ def reparer_description(description):
     return coupe.rstrip(" ,;:-") + "..."
 
 
+def retirer_prefixe_arxiv(description):
+    """Retire l'en-tête automatique « arXiv:... Announce Type: ... Abstract: »."""
+    return RE_PREFIXE_ARXIV.sub("", description, count=1)
+
+
 def nettoyer_article(brut, maintenant=None):
     """Nettoie un article. Retourne None si l'article est invalide."""
     if not isinstance(brut, dict):
@@ -113,9 +121,12 @@ def nettoyer_article(brut, maintenant=None):
     if not titre or not lien:
         return None
 
+    # On répare la troncature avant de retirer l'en-tête arXiv : le seuil de
+    # détection se mesure sur le texte tel que n8n l'a coupé.
+    description = reparer_description(nettoyer_texte(brut.get("description")))
     return {
         "titre": titre,
-        "description": reparer_description(nettoyer_texte(brut.get("description"))),
+        "description": retirer_prefixe_arxiv(description),
         "date": normaliser_date(brut.get("date"), maintenant),
         "lien": lien,
         "source": nettoyer_texte(brut.get("source")) or "Inconnue",

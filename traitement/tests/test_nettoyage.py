@@ -19,6 +19,7 @@ from nettoyage import (  # noqa: E402
     normaliser_date,
     normaliser_lien,
     reparer_description,
+    retirer_prefixe_arxiv,
 )
 
 DEMO = Path(__file__).resolve().parents[2] / "data" / "articles_demo.json"
@@ -123,6 +124,34 @@ def test_description_longue_mais_complete_inchangee():
     assert reparer_description(brut) == brut
 
 
+# --- en-tête arXiv --------------------------------------------------------
+
+def test_prefixe_arxiv_retire():
+    brut = "arXiv:2611.12933v1 Announce Type: new Abstract: Closed-loop experiments."
+    assert retirer_prefixe_arxiv(brut) == "Closed-loop experiments."
+
+
+def test_prefixe_arxiv_variantes_de_type():
+    assert retirer_prefixe_arxiv("arXiv:2611.1v2 Announce Type: replace-cross Abstract: Texte.") == "Texte."
+
+
+def test_description_sans_prefixe_arxiv_inchangee():
+    assert retirer_prefixe_arxiv("Un abstract: au milieu.") == "Un abstract: au milieu."
+
+
+def test_article_arxiv_description_sans_en_tete():
+    brut = article(description="arXiv:2611.12933v1 Announce Type: new Abstract: Des agents.")
+    assert nettoyer_article(brut, MAINTENANT)["description"] == "Des agents."
+
+
+def test_article_arxiv_tronque_toujours_recoupe_a_la_phrase():
+    corps = "Une phrase complete sur les agents. " * 40
+    brut = ("arXiv:2611.12933v1 Announce Type: new Abstract: " + corps)[:1000]
+    description = nettoyer_article(article(description=brut), MAINTENANT)["description"]
+    assert not description.startswith("arXiv:")
+    assert description.endswith(".")
+
+
 # --- nettoyer_article / nettoyer_articles ---------------------------------
 
 def test_article_valide_garde_les_cinq_champs():
@@ -188,6 +217,11 @@ def test_demo_descriptions_tronquees_recoupees_proprement():
     for brut, propre in zip(entree, sortie):
         if len(brut["description"]) >= 990 and not brut["description"].endswith((".", "!", "?")):
             assert propre["description"].endswith((".", "!", "?"))
+
+
+def test_demo_plus_aucun_en_tete_arxiv():
+    sortie = nettoyer_articles(charger_articles(DEMO))
+    assert not any("Announce Type" in a["description"] for a in sortie)
 
 
 def test_demo_nettoyage_idempotent():
