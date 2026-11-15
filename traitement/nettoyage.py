@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 # n8n coupe les descriptions à 1000 caractères : au-delà de ce seuil sans
 # ponctuation finale, on considère que la description a été tronquée.
 SEUIL_TRONQUE = 990
+LONGUEUR_MAX = 1000
 # On ne recoupe à la dernière phrase que si on garde au moins cette part du texte.
 PART_MIN_CONSERVEE = 0.4
 
@@ -84,7 +85,7 @@ def normaliser_date(valeur, maintenant=None):
 
 
 def reparer_description(description):
-    """Recoupe proprement une description tronquée par n8n."""
+    """Recoupe proprement une description tronquée par n8n (max. LONGUEUR_MAX caractères)."""
     if len(description) < SEUIL_TRONQUE or description.endswith(FIN_DE_PHRASE):
         return description
 
@@ -92,10 +93,14 @@ def reparer_description(description):
     if fins and fins[-1] >= len(description) * PART_MIN_CONSERVEE:
         return description[: fins[-1]].strip()
 
-    dernier_mot = description.rfind(" ")
+    # On réserve la place des trois points pour ne jamais dépasser LONGUEUR_MAX.
+    # Attention : on utilise "..." et non "…", car la normalisation NFKC
+    # transformerait "…" en "..." à la passe suivante (résultat non stable).
+    coupe = description[: LONGUEUR_MAX - 3]
+    dernier_mot = coupe.rfind(" ")
     if dernier_mot > 0:
-        description = description[:dernier_mot]
-    return description.rstrip(" ,;:-") + "…"
+        coupe = coupe[:dernier_mot]
+    return coupe.rstrip(" ,;:-") + "..."
 
 
 def nettoyer_article(brut, maintenant=None):
