@@ -30,7 +30,7 @@ def summarize_article(title, description):
         response = requests.post(
             OLLAMA_URL,
             json=payload,
-            timeout=180
+            timeout=300
         )
 
         response.raise_for_status()

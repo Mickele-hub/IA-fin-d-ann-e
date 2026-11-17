@@ -18,3 +18,11 @@ venv/
 # Tests
 .pytest_cache/
 data/articles_traites.json
+
+# Bases de données SQLite
+*.db
+*.db-shm
+*.db-wal
+database/veille.db
+database/veille.db-shm
+database/veille.db-wal

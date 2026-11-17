@@ -28,14 +28,24 @@ Créer une plateforme complète de veille technologique permettant de :
 
 ---
 
-### Personne 2 – Traitement et classification (Intégré dans VigieLab)
+### Personne 2 – Traitement et classification (Python)
 **Responsabilités :**
 - Nettoyage des données collectées
 - Suppression des doublons
 - Classification par domaine
 - Définition des mots-clés et critères de classification
 
-**Implémentation :** Intégré dans `vigielab/server/pipeline.ts` avec des règles heuristiques automatiques.
+**Dossier :** `traitement/`
+**Fichiers clés :**
+- `traitement/main.py` - Point d'entrée du pipeline
+- `traitement/nettoyage.py` - Nettoyage des données
+- `traitement/doublons.py` - Suppression des doublons
+- `traitement/classification.py` - Classification par mots-clés
+- `traitement/preparation.py` - Préparation pour Ollama
+
+**Domaines :** Cybersécurité, IA, Cloud, Développement, Autres
+
+**Note :** Cette fonctionnalité est également intégrée dans VigieLab (`server/pipeline.ts`) avec des règles heuristiques automatiques.
 
 ---
 
@@ -161,7 +171,17 @@ cd vigielab
 python adapter_n8n_to_vigielab.py
 ```
 
-### 4. Tester l'intégration Ollama
+### 4. Pipeline Python complet (Personnes 1, 2, 3)
+```bash
+python pipeline_complet.py
+```
+
+Ce script exécute :
+- Traitement et classification (Personne 2)
+- Résumé IA avec Ollama (Personne 3)
+- Stockage en base SQLite (Personne 3)
+
+### 5. Tester l'intégration Ollama
 ```bash
 cd vigielab
 python test_ollama_integration.py
@@ -177,6 +197,15 @@ IA-fin-d-ann-e/
 │   ├── README.md
 │   └── data/
 │       └── articles_demo.json
+├── traitement/             # Traitement et classification (Personne 2)
+│   ├── main.py            # Point d'entrée
+│   ├── nettoyage.py       # Nettoyage des données
+│   ├── doublons.py        # Suppression des doublons
+│   ├── classification.py  # Classification par mots-clés
+│   ├── preparation.py     # Préparation pour Ollama
+│   ├── requirements.txt
+│   ├── README.md
+│   └── tests/
 ├── vigielab/               # Interface et intégration (Personne 4)
 │   ├── server.ts
 │   ├── server/
@@ -195,6 +224,10 @@ IA-fin-d-ann-e/
 │   └── database.py
 ├── datasets/               # Données de test
 │   └── sample_articles.json
+├── data/                   # Données intermédiaires
+│   ├── articles_demo.json
+│   └── articles_traites.json
+├── pipeline_complet.py     # Pipeline complet Python
 └── README.md
 ```
 
